@@ -29,15 +29,15 @@
             <strong>{l s='Total products'}: <i>{$totalProducts}</i></strong>
         </div>
         <div>
-            <a href='{$pagelink}0'><i class='icon-step-backward'></i></a>
-            <a href='{$pagelink}{if $startPage-1>-1}{$startPage-1}{else}0{/if}'><i class='icon-backward'></i></a>
+            <a href='javascript:jumpToPage(0);'><i class='icon-step-backward'></i></a>
+            <a href='javascript:jumpToPage({if $startPage-1>-1}{$startPage-1}{else}0{/if});'><i class='icon-backward'></i></a>
             <select id='select_page' style='display: inline-block; margin: 5px; width: 54px;'>
                 {for $i=0 to $pages}
                     <option value='{$i}' {if ($i)==$startPage}selected='selected'{/if} >{$i+1}</option>
                 {/for}
             </select>
-            <a href='{$pagelink}{if $startPage+1<$pages}{$startPage+1}{else}{$pages}{/if}'><i class='icon-forward'></i></a>
-            <a href='{$pagelink}{$pages}'><i class='icon-step-forward'></i></a>
+            <a href='javascript:jumpToPage({if $startPage+1<$pages}{$startPage+1}{else}{$pages}{/if});'><i class='icon-forward'></i></a>
+            <a href='javascript:jumpToPage({$pages});'><i class='icon-step-forward'></i></a>
         </div>
     </div>
 </div>
@@ -57,4 +57,9 @@
             //window.location.assign('{$pagelink}' + '0&pagination=' + $(this).val()) + params;
         });
     });
+    function jumpToPage(page)
+    {
+        $('#input_current_page').val(page);
+        $('#submit_form').click();
+    }
 </script>

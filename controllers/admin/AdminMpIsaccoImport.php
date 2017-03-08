@@ -67,7 +67,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $this->debug = true;
         $this->smarty = Context::getContext()->smarty;
         $this->current_page = Tools::getValue('page',0);
-        $this->current_pagination = Tools::getValue('pagination',50);
+        $this->current_pagination = Tools::getValue('pagination',10);
         $this->session_list = 'isacco_list';
         $this->list_manufacturers = [];
         $this->list_suppliers = [];
@@ -318,6 +318,11 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 'width' => 'auto',
                 'type'  => 'bool',
                 'float' => 'true'],
+            'image_path' => [
+                'class'=> 'hidden',
+                'width' => 'auto',
+                'type'  => 'bool',
+                'float' => 'true'],
             ];
         
         $helper = new HelperListCore();
@@ -332,9 +337,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $helper->token = $token;
         $helper->currentIndex = AdminControllerCore::$currentIndex;
         $helper->show_toolbar = true;
-        $helper->listTotal = 50;
-        $helper->page=3;
-        $helper->no_link=true;
+        $helper->no_link=true; // Row is not clicable
         $helper->actions = ['edit','view','delete'];
         $helper->bulk_actions = [
             'delete' => [
@@ -396,15 +399,24 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     }
     
     protected function processBulkImport() {
-        $this->messages[] = [
-            'processBulkImport' => Tools::getValue('submitBulkImport'),
-            'isSubmit' => (int)Tools::isSubmit('submitBulkimport')
-            ];
+        $products = [];
         if (Tools::isSubmit('submitBulkimport')) {
             $boxes = Tools::getValue('Box');
+            
+            foreach ($boxes as $box)
+            {
+                $product = $this->getProductByReference($this->list[$box]['reference']);
+                if(!empty($product)) {
+                    $this->updateProduct($product,$this->list[$box]);
+                } else {
+                    $this->createProduct($this->list[$box]);
+                }
+            }
+            
             $this->messages[] = [
                 'function' => 'processBulkImport',
-                'boxes' => count($boxes) . " elements"];
+                'boxes' => count($boxes) . " elements",
+                ];
         }
         
     }
@@ -420,21 +432,14 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         //Get input values
         $this->getInputValues();
         
-        if (Tools::isSubmit('submit_form')) {
-            $this->messages[] = [
-                'function' => 'initContent',
-                'param' => 'submit_form'
-            ];
-            
-            //get file content
-            $this->readFile();
-            
-            //Call bulk process
-            $this->processBulkDelete();
-            $this->processBulkImport();
-            //Create pagination list
-            $this->createPaginationList();
-        }
+        //get file content
+        $this->readFile();
+
+        //Call bulk process
+        $this->processBulkDelete();
+        $this->processBulkImport();
+        //Create pagination list
+        $this->createPaginationList();
         
         $this->list_manufacturers = $this->createOptionList('manufacturer', 'id_manufacturer', 'name', 'name');
         $this->list_suppliers    = $this->createOptionList('supplier', 'id_supplier', 'name', 'name');
@@ -746,6 +751,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     private function createList($json)
     {
         $list = [];
+        $this->total_new_products = 0;
         $i=0;
         foreach ($json as $row)
         {
@@ -774,6 +780,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 'arr_colori' => $this->createArray($row['colori']),
                 'arr_dimensioni' => $this->createArray($row['dimensioni']),
                 'arr_materiali' => $this->createArray($row['materiali']),
+                'image_path' => 'https://www.isacco.it/' . $row['image']
             ];
             $i++;
         }
@@ -897,6 +904,67 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $this->total_obs_products = Tools::getValue('input_product_obsolete',0);
         $this->reference_prefix = Tools::getValue('input_reference_prefix','');
         $this->current_page = Tools::getValue('input_current_page',0);
-        $this->current_pagination = Tools::getValue('input_select_pagination',50);
+        $this->current_pagination = Tools::getValue('input_select_pagination',10);
+    }
+    
+    private function getProductByReference($reference)
+    {
+        $db = Db::getInstance();
+        $sql = new DbQueryCore();
+        $sql->select('id_product')
+                ->from('product')
+                ->where("reference='" . pSQL($reference) . "'" );
+        $value = $db->getValue($sql);
+        if ($value===false) {
+            return null;
+        } else {
+            $product = new ProductCore($value);
+            $messages[] = [
+                'function' => 'updateproduct',
+                'product id' => $product->id
+            ];
+            return $product;
+        }
+    }
+    
+    private function updateProduct(ProductCore $product, $productList)
+    {
+        $imagePath = $productList['image_path'];
+        $chunks = explode(".",$imagePath);
+        $format = end($chunks);
+        $image = new ImageCore();
+        $image->cover=false;
+        $image->force_id=false;
+        $image->id=0;
+        $image->id_image=0;
+        $image->id_product = $product->id;
+        $image->image_format = $format;
+        $image->legend = $productList['product'];
+        $image->position=0;
+        $image->source_index='';
+        $image->add();
+        
+        $imageTargetFolder = _PS_PROD_IMG_DIR_ . ImageCore::getImgFolderStatic($image->id);
+        if (!file_exists($imageTargetFolder)) {
+            mkdir($imageTargetFolder, 0777, true);
+        }
+        $target = $imageTargetFolder . $image->id . '.' . $image->image_format;
+        $copy = copy($imagePath, $target);
+        
+        
+        
+        $this->messages[] = [
+            'function' => 'updateproduct',
+            'params' => ['product' => htmlentities($product->description_short),'productList' => htmlentities(print_r($productList, 1))],
+            'copy' => $copy,
+            'image copy' => 'success',
+            'target' => $target,
+            '$image' => htmlentities(print_r($image, 1))
+            ];
+    }
+    
+    private function createProduct($productList)
+    {
+        return $productList;
     }
 }
