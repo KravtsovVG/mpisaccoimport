@@ -1,0 +1,277 @@
+/*
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+*/
+/* 
+    Created on : 27-gen-2017, 18.24.15
+    Author     : massimiliano
+*/
+
+.block_content label
+{
+    width: 10em !important;
+}
+input[type="text"].field, input[type="url"].field, input[type="number"].field, select.field
+{
+    background-color: #fcfcfc;
+    color: #222222;
+    border: 1px solid;
+    border-color: #aaaaaa;
+    border-radius: 5px;
+    height: 3em;
+    display: inline-block;
+    margin-left: 10px;
+    padding: 5px;
+}
+input[type='button']:hover
+{
+    cursor: pointer;
+}
+.width-s
+{
+    width: 5em !important;
+}
+.width-m
+{
+    width: 10em !important;
+}
+.width-l
+{
+    width: 20em !important;
+}
+.width-xl
+{
+    width: 40em !important;
+}
+.width-xxl
+{
+    width: 80em !important;
+}
+.text-align-l
+{
+    text-align: left  !important;
+}
+.text-align-c
+{
+    text-align: center !important;
+}
+.text-align-r
+{
+    text-align: right !important;
+}
+.date_field
+{
+    width: 20em !important;
+    height: 3em !important;
+    display: inline-block !important;
+    text-align: center;
+    margin-left: 10px !important;
+}
+.span_container
+{
+    display: block;
+    margin-bottom: 10px;
+}
+.table-data
+{
+    border-collapse: collapse;
+    border: 1px solid #006fa8;
+    width: 100%;
+}
+.table-data th
+{
+    padding: 8px;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #aaaaaa;
+    background-color: #006fa8;
+    color: #fefefe;
+    text-shadow: 1px 1px 1px #002f68;
+}
+.table-data td
+{
+    width: 2em;
+    border: 1px solid #aaaaaa;
+    padding: 5px;
+}
+.table-data tr:nth-child(even)
+{
+    background-color: #f5f5f5;
+}
+.table-data tr:nth-child(odd)
+{
+    background-color: #d9d9d9;
+}
+.table-data tr:hover
+{
+    background-color: #ddddff;
+}
+.table-data td:nth-child(1)
+{
+    text-align: right;
+}
+.table-data td:nth-child(2)
+{
+    text-align: left;
+}
+.table-data td:nth-child(3)
+{
+    text-align: right;
+}
+.table-data td:nth-child(4)
+{
+    text-align: left;
+}
+.table-data td:nth-child(5)
+{
+    text-align: left;
+}
+.table-data td:nth-child(6)
+{
+    text-align: right;
+}
+.table-data td:nth-child(7)
+{
+    text-align: right;
+}
+.table-data td:nth-child(8)
+{
+    text-align: right;
+}
+.table-data td:nth-child(9)
+{
+    text-align: right;
+}
+.table-data td:nth-child(10)
+{
+    text-align: left;
+}
+.table-data td:nth-child(11)
+{
+    text-align: center;
+}
+
+.submit-btn
+{
+    width: 10em;
+    height: 3em;
+    text-align: center;
+    font-size: 14px !important;
+    border-radius: 5px;
+    background-color: #dfdfdf;
+    text-shadow: 1px 1px 1px #cccccc;
+    border: 1px solid #aaaaaa;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+.submit-btn:hover
+{
+    color: #006fa8;
+    font-weight: bold;
+    background-position-x: 11px;
+}
+.submit-btn.mini
+{
+    width: 32px;
+    height: 32px;
+    text-align: center;
+    font-size: 8px !important;
+    margin-right: 5px;
+}
+.submit-btn.mini:hover
+{
+    background-color: #fdf5ce;
+}
+.info-field
+{
+    font-size: 0.8em;
+    margin-left: 10px;
+    text-decoration: #888888;
+}
+.icon-go
+{
+    background-image: url("../img/go.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-csv
+{
+    background-image: url("../img/csv.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-xls
+{
+    background-image: url("../img/excel.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-update
+{
+    background-image: url("../img/update.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-delete
+{
+    background-image: url("../img/delete.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-add
+{
+    background-image: url("../img/add.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-floppy
+{
+    background-image: url("../img/floppy.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-clear
+{
+    background-image: url("../img/clear.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-confirm
+{
+    background-image: url("../img/ok.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-gear
+{
+    background-image: url("../../img/gears.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-import
+{
+    background-image: url("../../img/import.png");
+    background-repeat: no-repeat;
+    background-position-x: 10px;
+    background-position-y: center;
+}
+.icon-center
+{
+    background-position: center !important;
+}
+.modal-button
+{
+    color: #222222 !important;
+    text-shadow: 1px 1px 1px #888888;
+}
