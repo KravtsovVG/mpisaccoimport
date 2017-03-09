@@ -32,18 +32,31 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     private $filename;
     private $messages;
     private $tmp_file;
-    private $json_import;
     private $json_file;
     private $current_page;
     private $current_pagination;
+    private $current_color_attribute_group;
+    private $current_material_attribute_group;
+    private $current_dimension_attribute_group;
+    private $current_washing_attribute_group;
+    private $current_color_feature;
+    private $current_material_feature;
+    private $current_dimension_feature;
+    private $current_washing_feature;
+    private $current_switch_import_image;
+    private $current_manufacturer;
+    private $current_supplier;
     private $session_list;
     private $list_manufacturers;
     private $list_suppliers;
-    private $selected_manufacturer;
-    private $selected_supplier;
+    private $list_attribute_group;
+    private $list_attributes;
+    private $list_features;
     private $total_new_products;
     private $total_obs_products;
     private $reference_prefix;
+    private $result_message;
+    
     
     //debug
     private $debug;
@@ -68,9 +81,24 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $this->smarty = Context::getContext()->smarty;
         $this->current_page = Tools::getValue('page',0);
         $this->current_pagination = Tools::getValue('pagination',10);
+        $this->current_color_attribute_group = Tools::getValue('input_select_color_attribute_group',0);
+        $this->current_material_attribute_group = Tools::getValue('input_select_material_attribute_group',0);
+        $this->current_dimension_attribute_group = Tools::getValue('input_select_dimension_attribute_group',0);
+        $this->current_washing_attribute_group = Tools::getValue('input_select_washing_attribute_group',0);
+        $this->current_color_feature = Tools::getValue('input_select_color_feature',0);
+        $this->current_material_feature = Tools::getValue('input_select_material_feature',0);
+        $this->current_dimension_feature = Tools::getValue('input_select_dimension_feature',0);
+        $this->current_washing_feature = Tools::getValue('input_select_washing_feature',0);
+        $this->current_switch_import_image = Tools::getValue('input_switch_import_image',1);
+        
         $this->session_list = 'isacco_list';
         $this->list_manufacturers = [];
         $this->list_suppliers = [];
+        $this->list_attribute_group = [];
+        $this->list_attributes = [];
+        $this->list_features = [];
+        $this->result_message = '';
+       
         $this->getInputValues();
     }
     
@@ -107,7 +135,26 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                     'required' => false,
                     'desc' => $this->l('Choose an optional prefix to put before reference product'),
                     'class' => 'input fixed-width-sm'
-                ]
+                ],
+                [
+                        'type' => 'select',
+                        'label' => $this->l('Pagination'),
+                        'desc' => $this->l('Choose how many records at a time to be displayed'),
+                        'name' => 'input_select_pagination',
+                        'required' => true,
+                        'options' => [
+                          'query' => [
+                              ['id'=>10,'value'=>'10'],
+                              ['id'=>25,'value'=>'25'],
+                              ['id'=>50,'value'=>'50'],
+                              ['id'=>100,'value'=>'100'],
+                              ['id'=>500,'value'=>'500'],
+                              ['id'=>1000000000,'value'=>$this->l('ALL')],
+                              ],
+                          'id' => 'id',
+                          'name' => 'value'
+                        ]
+                    ],
             ],
             'submit' => [
                 'title' => $this->l('Import'),       
@@ -150,6 +197,25 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                         'class' => 'input fixed-width-sm'
                     ],
                     [
+                        'type' => 'switch',
+                        'label' => $this->l('Import images?'),
+                        'name' => 'input_switch_import_image',
+                        'is_bool' => true,
+                        'desc' => $this->l('If set, this module will import images from Isacco server'),
+                        'values' => [
+                            [
+                                'id' => 'import_on',
+                                'value' => 1,
+                                'label' => $this->l('YES')
+                            ],
+                            [
+                                'id' => 'import_off',
+                                'value' => 0,
+                                'label' => $this->l('NO')
+                            ]
+                        ]
+                    ],
+                    [
                         'type' => 'select',
                         'label' => $this->l('Associate to manufacturer'),
                         'desc' => $this->l('Choose a manufacturer to associate'),
@@ -175,29 +241,113 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                     ],
                     [
                         'type' => 'select',
-                        'label' => $this->l('Pagination'),
-                        'desc' => $this->l('Choose how many records at a time to be displayed'),
-                        'name' => 'input_select_pagination',
+                        'label' => $this->l('Associate colors to attribute group'),
+                        'desc' => $this->l('Choose an attribute group to associate color field'),
+                        'name' => 'input_select_color_attribute_group',
                         'required' => true,
                         'options' => [
-                          'query' => [
-                              ['id'=>10,'value'=>'10'],
-                              ['id'=>25,'value'=>'25'],
-                              ['id'=>50,'value'=>'50'],
-                              ['id'=>100,'value'=>'100'],
-                              ['id'=>500,'value'=>'500'],
-                              ['id'=>1000000000,'value'=>$this->l('ALL')],
-                              ],
-                          'id' => 'id',
-                          'name' => 'value'
-                        ]
+                            'query' => $this->list_attribute_group,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
                     ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate materials to attribute group'),
+                        'desc' => $this->l('Choose an attribute group to associate material field'),
+                        'name' => 'input_select_material_attribute_group',
+                        'required' => true,
+                        'options' => [
+                            'query' => $this->list_attribute_group,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate dimensions to attribute group'),
+                        'desc' => $this->l('Choose an attribute group to associate color field'),
+                        'name' => 'input_select_dimension_attribute_group',
+                        'required' => true,
+                            'options' => [
+                            'query' => $this->list_attribute_group,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate washing to attribute group'),
+                        'desc' => $this->l('Choose an attribute group to associate washing field'),
+                        'name' => 'input_select_washing_attribute_group',
+                        'required' => true,
+                            'options' => [
+                            'query' => $this->list_attribute_group,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate color to feature'),
+                        'desc' => $this->l('Choose a feature to associate color field'),
+                        'name' => 'input_select_color_feature',
+                        'required' => true,
+                        'options' => [
+                            'query' => $this->list_features,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate material to feature'),
+                        'desc' => $this->l('Choose a feature to associate material field'),
+                        'name' => 'input_select_material_feature',
+                        'required' => true,
+                        'options' => [
+                            'query' => $this->list_features,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate dimension to feature'),
+                        'desc' => $this->l('Choose a feature to associate dimension field'),
+                        'name' => 'input_select_dimension_feature',
+                        'required' => true,
+                        'options' => [
+                            'query' => $this->list_features,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                    ],
+                    [
+                        'type' => 'select',
+                        'label' => $this->l('Associate washing to feature'),
+                        'desc' => $this->l('Choose a feature to associate washing field'),
+                        'name' => 'input_select_washing_feature',
+                        'required' => true,
+                        'options' => [
+                            'query' => $this->list_features,
+                            'id' => 'id',
+                            'name' => 'value'
+                        ],
+                ],
                     [
                         'type' => 'hidden',
                         'name' => 'input_current_page',
                         'id' => 'input_current_page',
                     ],
-                ]
+                ],
+                'submit' => [
+                    'title' => $this->l('SAVE'),       
+                    'class' => 'btn btn-default pull-right',
+                    'name'  => 'submit_form',
+                    'id'    => 'submit_form',
+                    'icon'  => 'process-icon-save'
+                ],
             ];
         }
         
@@ -212,14 +362,25 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $helper->fields_value['input_reference_prefix'] = $this->reference_prefix;
         $helper->fields_value['input_product_new'] = $this->total_new_products;
         $helper->fields_value['input_product_obsolete'] = $this->total_obs_products;
-        $helper->fields_value['input_select_manufacturer'] = $this->selected_manufacturer;
-        $helper->fields_value['input_select_supplier'] = $this->selected_supplier;
-        $helper->fields_value['input_select_pagination'] = $this->current_pagination;
+        $helper->fields_value['input_switch_import_image'] = $this->current_switch_import_image;
         $helper->fields_value['input_current_page'] = $this->current_page;
+        $helper->fields_value['input_select_manufacturer'] = $this->current_manufacturer;
+        $helper->fields_value['input_select_supplier'] = $this->current_supplier;
+        $helper->fields_value['input_select_pagination'] = $this->current_pagination;
+        $helper->fields_value['input_select_color_attribute_group'] = $this->current_color_attribute_group;
+        $helper->fields_value['input_select_material_attribute_group'] = $this->current_material_attribute_group;
+        $helper->fields_value['input_select_dimension_attribute_group'] = $this->current_dimension_attribute_group;
+        $helper->fields_value['input_select_washing_attribute_group'] = $this->current_washing_attribute_group;
+        $helper->fields_value['input_select_color_feature'] = $this->current_color_feature;
+        $helper->fields_value['input_select_material_feature'] = $this->current_material_feature;
+        $helper->fields_value['input_select_dimension_feature'] = $this->current_dimension_feature;
+        $helper->fields_value['input_select_washing_feature'] = $this->current_washing_feature;
         
-        $this->messages[] = [
-            'function' => 'createForm',
-            'return' => 'formfields'
+        
+        $this->messages[]['createForm'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
+            'return' => count($helper->fields_value) . ' elements',
             ];
         
         $form =  $helper->generateForm($fields_form);
@@ -286,12 +447,6 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 'width' => 'auto',
                 'type'  => 'bool',
                 'float' => 'true'],
-            'image' => [
-                'title' => $this->l('Image link'),
-                'align' => 'center',
-                'width' => 'auto',
-                'type'  => 'bool',
-                'float' => 'true'],
             'thumb' => [
                 'title' => $this->l('Thumb'),
                 'align' => 'center',
@@ -354,8 +509,9 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         
         $table = $helper->generateList($this->paginationList, $fields_list);
         
-        $this->messages[] = [
-            'function' => 'createTable',
+        $this->messages[]['createTable'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
             'list' => count($this->list) . ' elements'
         ];
         
@@ -390,8 +546,10 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
             $_SESSION[$this->session_list] = Tools::jsonEncode($this->list);
             
             //message
-            $this->messages[] = [
-                'function' => 'processBulkDelete',
+            $this->result_message .= $this->displayConfirmation($this->l('Selected products deleted with success.'));
+            $this->messages[]['processBulkDelete'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'boxes' => count($boxes) . " elements",
                 //'list' => htmlspecialchars(print_r($this->list,1))
                 ];
@@ -399,7 +557,6 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     }
     
     protected function processBulkImport() {
-        $products = [];
         if (Tools::isSubmit('submitBulkimport')) {
             $boxes = Tools::getValue('Box');
             
@@ -407,18 +564,20 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
             {
                 $product = $this->getProductByReference($this->list[$box]['reference']);
                 if(!empty($product)) {
-                    $this->updateProduct($product,$this->list[$box]);
+                    $this->productUpdate($product,$this->list[$box]);
                 } else {
-                    $this->createProduct($this->list[$box]);
+                    $this->productInsert($this->list[$box]);
                 }
             }
             
-            $this->messages[] = [
-                'function' => 'processBulkImport',
+            $this->result_message .= $this->displayConfirmation($this->l('Selected products imported with success.'));
+            
+            $this->messages[]['processBulkImport'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'boxes' => count($boxes) . " elements",
                 ];
         }
-        
     }
     
     public function initContent()
@@ -428,6 +587,12 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         if(session_status()!=PHP_SESSION_ACTIVE) {
             session_start();
         } 
+        
+        //Get Attributes
+        $this->getAttributeGroups();
+        
+        //get Features
+        $this->getFeatures();
         
         //Get input values
         $this->getInputValues();
@@ -445,23 +610,44 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $this->list_suppliers    = $this->createOptionList('supplier', 'id_supplier', 'name', 'name');
         
         $smarty = $this->context->smarty;
-        $form =  $this->createForm();
-        $table = $this->createTable();
-        $page =  $smarty->fetch(_PS_MODULE_DIR_ . 'mpisaccoimport/views/templates/admin/adminMpIsaccoImport.tpl');
+        $form   =  $this->createForm();
+        $table  = $this->createTable();
+        $script =  $smarty->fetch(_PS_MODULE_DIR_ . 'mpisaccoimport/views/templates/admin/script.tpl');
+        $nav    =  $smarty->fetch(_PS_MODULE_DIR_ . 'mpisaccoimport/views/templates/admin/table_navigator.tpl');
 
-        $this->messages[] = [
-            'function' => 'initContent',
+        $this->messages[]['initContent'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
             'already parsed' => 'true',
             'list' => count($this->list) . " elements"
         ];
         
         if ($this->debug) {
-            $this->messages = $this->displayConfirmation("<pre>" . print_r($this->messages, 1) . "</pre>");
+            $msg_display = '';
+            foreach ($this->messages as $message) {
+                foreach ($message as $key=>$msg)
+                {
+                    if ($msg['on']) {
+                        unset($msg['on']);
+                        $msg_display .= 'FUNCTION: ' 
+                                .$key 
+                                .PHP_EOL 
+                                .print_r($msg, 1)
+                                .PHP_EOL
+                                .'===================================================================================='
+                                .PHP_EOL
+                                .'===================================================================================='
+                                .PHP_EOL
+                                .PHP_EOL;
+                    }
+                }
+            }
+            $this->messages = $this->displayConfirmation("<pre>" . $msg_display . "</pre>");
         } else {
             $this->messages = '';
         }
         
-        $this->context->smarty->assign(array('content' => $form . $table . $page . $this->messages));
+        $this->context->smarty->assign(array('content' => $this->result_message . $form . $nav . $table . $nav . $script . $this->messages));
     }
     
     private function getCarriers()
@@ -493,8 +679,9 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $orderStateLang = new OrderStateCore((int)$id);
         $state = $orderStateLang->getFieldByLang('name', $this->_lang);
         
-        $this->messages[] = [
-            'function' => 'getOrderStateLang',
+        $this->messages[]['getOrderStateLang'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
             'param' => $id,
             'return' => $state
         ];
@@ -591,16 +778,18 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 ->where('reference = \'' . pSQL($order_reference) . '\'');
         try {
             $value = $db->getValue($sql);
-            $this->messages[] = [
-                'function' => 'getOrderStateByReference',
+            $this->messages[]['getOrderStateByReference'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'param' => $order_reference,
                 'return' => 'order id: ' . $value,
                 'sql' => (string)$sql
                 ];
             return $value;
         } catch (Exception $ex) {
-            $this->messages[] = [
-                'function' => 'getOrderStateByReference',
+            $this->messages[]['getOrderStateByReference'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'param' => $order_reference,
                 'return' => 'error: ' . $ex->getMessage(),
                 'sql' => (string)$sql
@@ -622,14 +811,16 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 ->where('carrier_import_type_id=' . (int)$import_type);
         $value = $db->getValue($sql);
         if (empty($value)) {
-            $this->messages[] = [
-                'function' => 'getSeparator',
+            $this->messages[]['getSeparator'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'return' => 'no separator found'
             ];
             return null;
         } else {
-            $this->messages[] = [
-                'function' => 'getSeparator',
+            $this->messages[]['getSeparator'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'return' => 'separator: ' . $value
             ];
             return $value;
@@ -651,6 +842,11 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         return $str = substr($string, 1);
     }
     
+    /**
+     * Conver an array to <option> tag
+     * @param array $array array of options
+     * @return string option list
+     */
     private function explode($array)
     {
         $items = [];
@@ -670,9 +866,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
             return "<select>" . implode(" ", $items) . "</select>";
         } else {
             return "--";
-        }
-            
-        
+        } 
     }
     
     /**
@@ -699,34 +893,10 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         return $items;
     }
     
-    private function import()
-    {
-        if(isset($_SESSION['parsed'])) {
-            return array_values(Tools::jsonDecode($_SESSION['json_file'],true));
-        }
-        
-        if (isset($_FILES['input_import_file'])) {
-            
-        } else {
-            $fileContent = $_SESSION['json_file'];
-        }
-        
-        
-        $this->json_import = array_values($json_array);
-        
-        $_SESSION['json_file'] = $fileContent;
-        $_SESSION['parsed'] = true;
-        
-        file_put_contents($this->json_file, $fileContent);
-        $this->messages[] = [
-            'function' => 'import',
-            'tmp_name' => $this->tmp_file,
-            'file' => (strlen($fileContent)*8) . ' Kb' ,
-            'json' => count($this->json_import) . ' elements',
-            'session_started' => isset($_SESSION['json_file'])?strlen($_SESSION['json_file'])*8 . ' Kb':'no'];
-        return $this->json_import;
-    }
-    
+    /**
+     * create list for helperlist table
+     * @return void
+     */
     private function readFile()
     {
         if (empty($_FILES['input_import_file']['tmp_name'])) {
@@ -744,7 +914,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     }
     
     /**
-     * 
+     * create a list for helperlist table content
      * @param array $json object to process
      * @return table data for helperlist
      */
@@ -774,8 +944,7 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 'materiali' => $this->explode($row['materiali']),
                 'dimensioni' => $this->explode($row['dimensioni']),
                 'washing' => $this->explode($row['washing']),
-                'image' => '<a href="https://www.isacco.it' . $row['image'] . '" target="_blank">link</a>',
-                'thumb' => '<img src="https://www.isacco.it' . $row['thumb'] . '" style="width:100px;">',
+                'thumb' => '<a href="https://www.isacco.it' . $row['image'] . '" target="_blank"><img src="https://www.isacco.it' . $row['thumb'] . '" style="width:64px;"></a>',
                 'arr_tags' => $this->createArray($row['tags']),
                 'arr_colori' => $this->createArray($row['colori']),
                 'arr_dimensioni' => $this->createArray($row['dimensioni']),
@@ -791,8 +960,9 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         $_SESSION[$this->session_list] = Tools::jsonEncode($list);
         $this->list = $list;
         
-        $this->messages[] = [
-            'function' => 'createList',
+        $this->messages[]['createList'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
             'param' => count($json) . " elements",
             'return' => count($list) . " elements",
             //'list' => htmlentities(print_r($this->list, 1))
@@ -820,8 +990,9 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         
         $this->paginationList = $paginationList;
         
-        $this->messages[] = [
-            'function' => 'createList',
+        $this->messages[]['createPaginationList'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
             'param' => count($this->list) . " elements",
             'return' => count($paginationList) . " elements",
             //'list' => htmlentities(print_r($this->paginationList, 1))
@@ -885,7 +1056,29 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
                 ->from($tablename)
                 ->orderBy($orderBy);
         $result = $db->executeS($sql);
+        $options[] = [
+            'id' => 0,
+            'value' => $this->l('Please select')
+        ];
         foreach ($result as $row)
+        {
+            $options[] = [
+                'id' => $row[$id],
+                'value' => $row[$value]
+            ];
+        }
+        
+        return $options;
+    }
+    
+    private function createOptionListFromArray($array,$id,$value)
+    {
+        $options = [];
+        $options[] = [
+            'id' => 0,
+            'value' => $this->l('Please select')
+        ];
+        foreach ($array as $row)
         {
             $options[] = [
                 'id' => $row[$id],
@@ -898,13 +1091,106 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     
     private function getInputValues()
     {
-        $this->selected_manufacturer = Tools::getValue('input_select_manufacturer',0);
-        $this->selected_supplier = Tools::getValue('input_select_supplier',0);
-        $this->total_new_products = Tools::getValue('input_product_new',0);
-        $this->total_obs_products = Tools::getValue('input_product_obsolete',0);
-        $this->reference_prefix = Tools::getValue('input_reference_prefix','');
-        $this->current_page = Tools::getValue('input_current_page',0);
-        $this->current_pagination = Tools::getValue('input_select_pagination',10);
+        if(session_status()!=PHP_SESSION_ACTIVE) {
+            session_start();
+        } 
+        
+        if(Tools::isSubmit('submitBulkdelete') || Tools::isSubmit('submitBulkimport')) {
+            $array = tools::jsonDecode($_SESSION['input_values'],true);
+            
+            $this->current_manufacturer = $array['manufacturer'];
+            $this->current_supplier = $array['supplier'];
+            $this->total_new_products = $array['new'];
+            $this->total_obs_products = $array['obs'];
+            $this->reference_prefix = $array['prefix'];
+            $this->current_page = $array['page'];
+            $this->current_pagination = $array['pagination'];
+            $this->current_color_attribute_group = $array['attribute_color_group'];
+            $this->current_material_attribute_group = $array['attribute_material_group'];
+            $this->current_dimension_attribute_group = $array['attribute_dimension_group'];
+            $this->current_washing_attribute_group = $array['attribute_washing_group'];
+            $this->current_color_feature = $array['feature_color'];
+            $this->current_material_feature = $array['feature_material'];
+            $this->current_dimension_feature = $array['feature_dimension'];
+            $this->current_washing_feature = $array['feature_washing'];
+            $this->current_switch_import_image = $array['switch_import_image'];
+
+        } else {
+            if (!empty($_FILES['input_import_file']['name'])) {
+                $this->current_manufacturer = 0;
+                $this->current_supplier = 0;
+                $this->total_new_products = 0;
+                $this->total_obs_products = 0;
+                $this->reference_prefix = Tools::getValue('input_reference_prefix','');
+                $this->current_page = 0;
+                $this->current_pagination = 10;
+                $this->current_color_attribute_group = 0;
+                $this->current_material_attribute_group = 0;
+                $this->current_dimension_attribute_group = 0;
+                $this->current_washing_attribute_group = 0;
+                $this->current_color_feature = 0;
+                $this->current_dimension_feature = 0;
+                $this->current_material_feature = 0;
+                $this->current_washing_feature = 0;
+                $this->current_switch_import_image = 1;
+                unset($_SESSION[$this->session_list]);
+                unset($_SESSION['input_values']);
+            } else {
+                $this->current_manufacturer = Tools::getValue('input_select_manufacturer',0);
+                $this->current_supplier = Tools::getValue('input_select_supplier',0);
+                $this->total_new_products = Tools::getValue('input_product_new',0);
+                $this->total_obs_products = Tools::getValue('input_product_obsolete',0);
+                $this->reference_prefix = Tools::getValue('input_reference_prefix','');
+                $this->current_page = Tools::getValue('input_current_page',0);
+                $this->current_pagination = Tools::getValue('input_select_pagination',10);
+                $this->current_color_attribute_group = Tools::getValue('input_select_color_attribute_group',0);
+                $this->current_material_attribute_group = Tools::getValue('input_select_material_attribute_group',0);
+                $this->current_dimension_attribute_group = Tools::getValue('input_select_dimension_attribute_group',0);
+                $this->current_washing_attribute_group = Tools::getValue('input_select_washing_attribute_group',0);
+                $this->current_color_feature = Tools::getValue('input_select_color_feature',0);
+                $this->current_material_feature = Tools::getValue('input_select_material_feature',0);
+                $this->current_dimension_feature = Tools::getValue('input_select_dimension_feature',0);
+                $this->current_washing_feature = Tools::getValue('input_select_washing_feature',0);
+                $this->current_switch_import_image = Tools::getValue('input_switch_import_image',1);
+            }
+            
+            $array = [
+                'manufacturer' => $this->current_manufacturer,
+                'supplier' => $this->current_supplier,
+                'new' => $this->total_new_products,
+                'obs' => $this->total_obs_products,
+                'prefix' => $this->reference_prefix,
+                'page' => $this->current_page,
+                'pagination' => $this->current_pagination,
+                'attribute_color_group' => $this->current_color_attribute_group,
+                'attribute_material_group' => $this->current_material_attribute_group,
+                'attribute_dimension_group' => $this->current_dimension_attribute_group,
+                'attribute_washing_group' => $this->current_washing_attribute_group,
+                'feature_color' => $this->current_color_feature,
+                'feature_material' => $this->current_material_feature,
+                'feature_dimension' => $this->current_dimension_feature,
+                'feature_washing' => $this->current_washing_feature,
+                'switch_import_image' => $this->current_switch_import_image,
+            ];
+            
+            $_SESSION['input_values'] = Tools::jsonEncode($array);
+        }
+            
+        $this->messages[]['getInputValues'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
+            'manufacturer' => $this->current_manufacturer,
+            'supplier' => $this->current_supplier,
+            'new products' => $this->total_new_products,
+            'obsolete products' => $this->total_obs_products,
+            'reference prefix' => $this->reference_prefix,
+            'current page' => $this->current_page,
+            'pagination' => $this->current_pagination,
+            'attribute group' => $this->current_color_attribute_group,
+            'session' => htmlentities(print_r($_SESSION['input_values'], 1)),
+            'submitBulkdelete' => (int)  Tools::isSubmit('submitBulkdelete'),
+            'submitBulkimport' => (int)  Tools::isSubmit('submitBulkimport'),
+        ];
     }
     
     private function getProductByReference($reference)
@@ -919,52 +1205,135 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
             return null;
         } else {
             $product = new ProductCore($value);
-            $messages[] = [
-                'function' => 'updateproduct',
+            $this->messages[]['getProductByReference'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'product id' => $product->id
             ];
             return $product;
         }
     }
     
-    private function updateProduct(ProductCore $product, $productList)
+    private function productUpdate(ProductCore &$product, $productList)
     {
-        $imagePath = $productList['image_path'];
-        $chunks = explode(".",$imagePath);
-        $format = end($chunks);
-        $image = new ImageCore();
-        $image->cover=false;
-        $image->force_id=false;
-        $image->id=0;
-        $image->id_image=0;
-        $image->id_product = $product->id;
-        $image->image_format = $format;
-        $image->legend = $productList['product'];
-        $image->position=0;
-        $image->source_index='';
-        $image->add();
-        
-        $imageTargetFolder = _PS_PROD_IMG_DIR_ . ImageCore::getImgFolderStatic($image->id);
-        if (!file_exists($imageTargetFolder)) {
-            mkdir($imageTargetFolder, 0777, true);
+        $error = false;
+        //import image
+        if (!empty($productList['image_path'])) {
+            $imagePath = $productList['image_path'];
+            $chunks = explode(".",$imagePath);
+            $format = end($chunks);
+            
+            if ($this->current_switch_import_image==1) {
+                $image = new ImageCore();
+                $image->cover=false;
+                $image->force_id=false;
+                $image->id=0;
+                $image->id_image=0;
+                $image->id_product = $product->id;
+                $image->image_format = $format;
+                $image->legend = $productList['product'];
+                $image->position=0;
+                $image->source_index='';
+                $image->add();
+
+                $imageTargetFolder = _PS_PROD_IMG_DIR_ . ImageCore::getImgFolderStatic($image->id);
+                if (!file_exists($imageTargetFolder)) {
+                    mkdir($imageTargetFolder, 0777, true);
+                }
+                $target = $imageTargetFolder . $image->id . '.' . $image->image_format;
+                $copy = copy($imagePath, $target);
+            }
         }
-        $target = $imageTargetFolder . $image->id . '.' . $image->image_format;
-        $copy = copy($imagePath, $target);
+            
+        //Update product fields
+        
+        if (!empty($productList['product'])) {
+            $product->name[$this->_lang] = $productList['product'];
+        }
+        if ($this->current_manufacturer>0) {
+            $product->id_manufacturer = $this->current_manufacturer;
+        }
+        if ($this->current_supplier>0) {
+            $product->id_supplier = $this->current_supplier;
+        }
+        
+        $this->messages[]['productUpdate CHECK OBJECT'] = [
+            'on' => false,
+            'call' => debug_backtrace()[1]['function'],
+            'product' => htmlentities(print_r($product, 1)),
+        ];
+        
+        try {
+            $this->messages[]['productUpdate'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
+                'product name' => $product->name,
+                'getProductName' => $product->getProductName($product->id),
+            ];
+            $product->update();
+        } catch (Exception $exc) {
+            $error = true;
+            $this->messages[]['productUpdate -ERROR-'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
+                'product reference' => $product->reference,
+                'product import reference' => $productList['product_id'],
+                'error' => $exc->getMessage(),
+                'product name' => $product->name,
+                'getProductName' => $product->getProductName($product->id),
+                'stack' => $exc->getTraceAsString(),
+                //'product' => htmlentities(print_r($product, 1))
+            ];      
+        }
+        
+        //Update Attributes
         
         
-        
-        $this->messages[] = [
-            'function' => 'updateproduct',
-            'params' => ['product' => htmlentities($product->description_short),'productList' => htmlentities(print_r($productList, 1))],
-            'copy' => $copy,
-            'image copy' => 'success',
-            'target' => $target,
-            '$image' => htmlentities(print_r($image, 1))
+        //Messages
+        $this->messages[]['productUpdate'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
+            'status' => $error==true?'ERROR DURING UPDATE':'UPDATE OK',
+            'params' => [
+                'product reference' => htmlentities($product->reference),
+                'product import reference' => htmlentities($productList['product_id'])],
+            'copy' => isset($copy)?$copy:'not set',
+            'image copy' => $this->current_switch_import_image==1?'enabled':'disabled',
+            'target' => isset($target)?$target:'not set',
+            '$image' => isset($image)?htmlentities($image->legend):'not set'
             ];
     }
     
-    private function createProduct($productList)
+    private function productInsert($productList)
     {
         return $productList;
+    }
+    
+    private function getAttributeGroups()
+    {  
+        $attrGroups = AttributeGroupCore::getAttributesGroups($this->_lang);
+        $this->list_attribute_group = $this->createOptionListFromArray($attrGroups, 'id_attribute_group', 'name');
+        
+        
+        $this->messages[]['getAttributeGroups'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
+            //'groups' => htmlentities(print_r($attrGroups, 1)),
+            'groups' => count($attrGroups) . ' elements',
+        ];
+        
+    }
+    
+    private function getFeatures()
+    {
+        $features = FeatureCore::getFeatures($this->_lang);
+        $this->list_features = $this->createOptionListFromArray($features, 'id_feature', 'name');
+        
+        $this->messages[]['getFeatures'] = [
+            'on' => true,
+            'call' => debug_backtrace()[1]['function'],
+            //'features' => htmlentities(print_r($features, 1)),
+            'features' => count($features) . ' elements',
+        ];
     }
 }
