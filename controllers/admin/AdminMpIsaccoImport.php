@@ -1264,11 +1264,14 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         ];
         
         try {
-            $this->messages[]['productUpdate'] = [
+            $this->messages[]['productUpdate CALL $product->update'] = [
                 'on' => true,
                 'call' => debug_backtrace()[1]['function'],
+                'product reference' => $product->reference,
                 'product name' => $product->name,
-                'getProductName' => $product->getProductName($product->id),
+                'product manufacturer' => $product->id_manufacturer,
+                'product supplier' => $product->id_supplier,
+                'status' => 'updating...'
             ];
             $product->update();
         } catch (Exception $exc) {
@@ -1287,10 +1290,43 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
         }
         
         //Update Attributes
+        if ($this->current_color_attribute_group>0) {
+            $this->updateAttribute($product, $productList, $this->current_color_attribute_group, true);
+        }
         
+        //Update product supplier
+        if ($this->current_supplier>0) {
+            $product_attributes = $product->getProductAttributesIds($product->id);
+            if (is_array($product_attributes)) {
+               foreach($product_attributes as $product_attribute_row_id) 
+               {
+                   $this->messages[]['productUpdate SUPPLIER'] = [
+                       'on' => true,
+                       'product attribute' => htmlentities(print_r($product_attribute_row_id, 1))
+                   ];
+                   $prod_suppliers = $this->getProductSuppliers($product->id,$product_attribute_row_id['id_product_attribute']);
+                   if(is_array($prod_suppliers)) {
+                       foreach($prod_suppliers as $prod_supplier_row_id)
+                       {
+                           $prod_supplier = new ProductSupplierCore($prod_supplier_row_id['id_product_supplier']);
+                           $prod_supplier->id_supplier = $this->current_supplier;
+                           $prod_supplier->product_supplier_reference = $product->reference;
+                           try {
+                               $prod_supplier->update();
+                           } catch (Exception $exc) {
+                               $this->messages[]['productUpdate SUPPLIERS'] = [
+                                   'on' => true,
+                                   'error' => $exc->getMessage(),
+                               ];
+                           }
+                        }
+                   }
+               }
+            }
+        }
         
         //Messages
-        $this->messages[]['productUpdate'] = [
+        $this->messages[]['productUpdate SUMMARY'] = [
             'on' => true,
             'call' => debug_backtrace()[1]['function'],
             'status' => $error==true?'ERROR DURING UPDATE':'UPDATE OK',
@@ -1335,5 +1371,81 @@ class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
             //'features' => htmlentities(print_r($features, 1)),
             'features' => count($features) . ' elements',
         ];
+    }
+    
+    private function updateAttribute(&$product, &$productList, $attribute_group_id, $isColor = false)
+    {
+        if( $isColor) {
+            $color = '';
+            $colors = $productList['arr_colori'];
+            if(is_array($colors)) {
+                $color = $colors[0];
+            } elseif ($colors!='--') {
+                $color = $colors;
+            }
+            
+            if (!empty($color)) {
+                $row = $this->getAttributeByName($attribute_group_id,$color);
+                if (!empty($row)) {
+                    $id_attribute = $row['id_attribute'];
+                    $color_html   = $row['color'];
+                    $position     = $row['position'];
+                } else {
+                    $id_attribute = 0;
+                    $color_html = '';
+                    $position = -1;
+                }
+                
+                $this->messages[]['updateAttribute'] = [
+                    'on' => true,
+                    'product' => $productList['product_id'],
+                    'attribute_name' => $color,
+                    'attribute_id' => $id_attribute!=0?$id_attribute:'not found',
+                    'color' => $color_html!=''?$color_html:'not found',
+                    'position' => $position!=-1?$position:'not found',
+                ];
+            }
+        }
+        $attrGrp = new AttributeGroupCore($attribute_group_id);
+        $attr = new AttributeCore();
+    }
+    
+    /**
+     * Get id attribute looking for attribute name
+     * @param int $attribute_group_id 
+     * @param string $attribute_name
+     * @return array associated array [id_attribute,color,position]
+     */
+    private function getAttributeByName($attribute_group_id, $attribute_name)
+    {
+        $db = Db::getInstance();
+        $sql = new DbQueryCore();
+        $sql->select('a.id_attribute')
+                ->select('a.color')
+                ->select('a.position')
+                ->from('attribute','a')
+                ->innerJoin('attribute_lang','al','al.id_attribute=a.id_attribute')
+                ->where('al.id_lang='. (int)$this->_lang)
+                ->where('al.name like \'%' . pSQL($attribute_name) . '%\'')
+                ->where('a.id_attribute_group=' . pSQL($attribute_group_id));
+        return $db->getRow($sql);
+    }
+    
+    private function getProductSuppliers($product_id,$product_attribute_id)
+    {
+        $db = Db::getInstance();
+        $sql = new DbQueryCore();
+        $sql->select('id_product_supplier')
+                ->from('product_supplier')
+                ->where('id_product='. (int)$product_id)
+                ->where('id_product_attribute=' . (int)$product_attribute_id);
+        $result = $db->executeS($sql);
+        $this->messages[]['getProductSuppliers'] = [
+            'on' => true,
+            'result' => htmlentities(print_r($result, 1)),
+            'product id' => $product_id,
+            'product_attribute_id' => $product_attribute_id,
+        ];
+        return $result;
     }
 }
