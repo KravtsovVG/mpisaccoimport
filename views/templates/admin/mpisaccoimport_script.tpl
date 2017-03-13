@@ -22,8 +22,14 @@
 *  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
 *  International Registered Trademark & Property of mpSOFT
 *}
-<div style="display: none;" class="process-icon-upload"></div>
+
 <script type="text/javascript">
+    $(document).ready(function(){
+        console.log("download: " + $('#input_download').val());
+        {if $download_xls}
+                window.location.href = '{$download_xls}';
+        {/if}
+    });
     function export_excel()
     {
         $('#input_export').val('1');

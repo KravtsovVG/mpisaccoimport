@@ -39,6 +39,8 @@ class MpIsaccoImport extends Module
     private $user;
     private $password;
     private $json_string;
+    private $filename;
+    private $excel_filename;
     protected $_lang;
     
     public function __construct()
@@ -65,6 +67,8 @@ class MpIsaccoImport extends Module
         $this->json_string = '';
         $this->messages = [];
         $this->debug = true;
+        $this->filename = dirname(__FILE__) . DIRECTORY_SEPARATOR .'json.txt';
+        $this->excel_filename = dirname(__FILE__) . DIRECTORY_SEPARATOR .'export.xls';
     }
   
     public function install()
@@ -74,15 +78,29 @@ class MpIsaccoImport extends Module
         }
 
         if (!parent::install() ||
-            !$this->registerHook('displayAdminOrder') ||
-            !$this->registerHook('displayBackOfficeHeader') ||
-            !$this->installSQL() ||
-            !$this->installTab()) {
+            !$this->installTab() ||
+            !$this->extractClass()) {
             return false;
         }
             return true;
       }
     
+    public function extractClass()
+    {
+        $zip = new ZipArchive();
+        if ($zip->open(dirname(__FILE__) . DIRECTORY_SEPARATOR . 'PHPExcel-1.8.zip') === TRUE) {
+            if ($zip->extractTo(_PS_CLASS_DIR_)) {
+                $zip->close();
+                return true;
+            } else {
+                $zip->close();
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+      
     public function uninstall()
     {
       if (!parent::uninstall() ||
@@ -90,58 +108,6 @@ class MpIsaccoImport extends Module
         return false;
       }
       return true;
-    }
-    
-    private function installSQL()
-    {
-        $filename = dirname(__FILE__) . DIRECTORY_SEPARATOR . "sql" . DIRECTORY_SEPARATOR . "install.sql";
-        $sql = explode(";",file_get_contents($filename));
-        if(empty($sql)){return FALSE;}
-        foreach($sql as $query)
-        {
-            if(!empty($query))
-            {
-                $query = str_replace("{_DB_PREFIX_}", _DB_PREFIX_, $query);
-                $db = Db::getInstance();
-                $result = $db->execute($query);
-                if(!$result){return FALSE;}
-            }
-        }
-        return TRUE;
-    }
-    
-    private function uninstallSQL()
-    {
-        $filename = dirname(__FILE__) . DIRECTORY_SEPARATOR . "sql" . DIRECTORY_SEPARATOR . "uninstall.sql";
-        $sql = explode(";",file_get_contents($filename));
-        if(empty($sql)){return FALSE;}
-        foreach($sql as $query)
-        {
-            if(!empty($query))
-            {
-                $query = str_replace("{_DB_PREFIX_}", _DB_PREFIX_, $query);
-                $db = Db::getInstance();
-                $result = $db->execute($query);
-                if(!$result){return FALSE;}
-            }
-        }
-        return TRUE;
-    }
-    
-    public function hookDisplayAdminOrder()
-    {
-            //Assign Smarty Variables
-            //return $this->display(__FILE__, 'import_csv.tpl');
-    }
-
-    public function hookDisplayBackOfficeHeader()
-    {
-        /*
-        $this->context->controller->addCSS($this->_path .'views/css/admin.css');
-        $this->context->controller->addJS ($this->_path .'views/js/label.js');
-        $this->context->controller->addCSS($this->_path.'views/css/config.css');
-        $this->context->controller->addCSS($this->_path.'views/css/dialog.css');
-         */
     }
     
     public function installTab()
@@ -152,7 +118,7 @@ class MpIsaccoImport extends Module
             $tab->name = array();
             foreach (Language::getLanguages(true) as $lang)
             {
-                    $tab->name[$lang['id_lang']] = 'MP Isacco Import';
+                $tab->name[$lang['id_lang']] = 'MP Isacco Import';
             }
             $tab->id_parent = (int)Tab::getIdFromClassName('AdminCatalog');
             $tab->module = $this->name;
@@ -164,12 +130,12 @@ class MpIsaccoImport extends Module
             $id_tab = (int)Tab::getIdFromClassName('AdminMpIsaccoImport');
             if ($id_tab)
             {
-                    $tab = new Tab($id_tab);
-                    return $tab->delete();
+                $tab = new Tab($id_tab);
+                return $tab->delete();
             }
             else
             {
-                    return false;
+                return false;
             }
     }
     
@@ -187,11 +153,13 @@ class MpIsaccoImport extends Module
         $form =  $this->createForm();
         $script =  $smarty->fetch(_PS_MODULE_DIR_ . 'mpisaccoimport/views/templates/admin/mpisaccoimport_script.tpl');
         $this->debug_messages();
+        
         return $form . $script . $this->messages;
     }
     
     private function createForm()
     {   
+        Context::getContext()->smarty->assign('download_xls','');
         $fields_form = [];
         $fields_form[0]['form'] = [
             'legend' => [
@@ -253,11 +221,6 @@ class MpIsaccoImport extends Module
                     'name' => 'input_export',
                     'id'   => 'input_export',
                 ],
-                [
-                    'type' => 'hidden',
-                    'name' => 'input_json_string',
-                    'id'   => 'input_json_string',
-                ],
             ],
             'submit' => [
                 'title' => $this->l('GET'),       
@@ -281,14 +244,20 @@ class MpIsaccoImport extends Module
         ];
         
         if (Tools::isSubmit('submit_form')) {
-            
             //get json from isacco server
             $username = $this->user;
             $password = $this->password;
             $url      = $this->url;
             
-            if (Tools::getValue('input_export')) {
-                $json_purified = Tools::getValue('input_json_string');
+            if (Tools::getValue('input_export',0)==1) {
+                //Get file from input field
+                $json_purified = file_get_contents($this->filename); 
+                $this->messages[]['export'] = [
+                    'on' => true,
+                    'call' => debug_backtrace()[1]['function'],
+                    'export to excel' => 'yes',
+                    'json' => strlen($this->json_string) . " Kb"
+                ];
             } else {
                 //Get file from server
                 $context = stream_context_create(
@@ -300,18 +269,70 @@ class MpIsaccoImport extends Module
                 $pattern = '/,}$/';
                 $replacement = '}';
                 $json_purified = preg_replace($pattern, $replacement, $json_data_2);
-                $size = (int)(strlen($json_purified));
-                $filename = dirname(__FILE__) .'/json.txt';
-                file_put_contents($filename, $json_purified);
-                chmod($filename,0777);
-                $this->json_string = $json_purified;
+                file_put_contents($this->filename, $json_purified);
+                chmod($this->filename,0777);
             }
+            $size = (int)(strlen($json_purified));
+            $this->json_string = $json_purified;
             
             //Decode string into object
             $json_array  = Tools::jsonDecode($json_purified, true);
             
+            /**********************
+             * CREATE EXCEL SHEET *
+             **********************/
+            if (Tools::getValue('input_export',0)==1) {
+                $excel = new PHPExcel();
+                $sheet = &$excel->getSheet();
+                $i_row = 1;
+                foreach ($json_array as $row) {
+                    if ($i_row==1) {
+                        $i_col=0;
+                        foreach ($row as $key=>$col) {
+                            $sheet->setCellValueExplicitByColumnAndRow($i_col, $i_row, $key);
+                            $i_col++;
+                        }
+                        $i_row++;
+                    }
+                    $i_col=0;
+                    foreach ($row as $col) {
+                        if (is_array($col)) {
+                            $sheet->setCellValueExplicitByColumnAndRow($i_col, $i_row, implode(";",$col));
+                        } else {
+                            $sheet->setCellValueExplicitByColumnAndRow($i_col, $i_row, $col);
+                        }
+                        $i_col++;
+                    }
+                    $i_row++;
+                }
+                //$excel->removeSheetByIndex();
+                //$excel->addSheet($sheet);
+ 
+                $objWriter = new PHPExcel_Writer_Excel5($excel);
+                try {
+                    $objWriter->save($this->excel_filename); 
+                    chmod($this->excel_filename, 0775);
+                    Context::getContext()->smarty->assign('download_xls','../modules/mpisaccoimport/download.php?file=export.xls');
+                    $this->messages[]['Excel Writer'] = [
+                        'on' => true,
+                        'call' => debug_backtrace()[1]['function'],
+                        'create' => 'success',
+                        'filename' => $this->excel_filename
+                    ];
+                } catch (Exception $exc) {
+                    Context::getContext()->smarty->assign('download_xls','');
+                    $this->messages[]['Excel Writer'] = [
+                        'on' => true,
+                        'call' => debug_backtrace()[1]['function'],
+                        'error' => $exc->getMessage(),
+                        'filename' => $this->excel_filename
+                    ];
+                }
+            }
+            
             $this->messages[]['createForm -> get json'] = [
                 'on' => true,
+                'call' => debug_backtrace()[1]['function'],
                 'url' => $this->url,
                 'user' => $this->user,
                 'password' => $this->password,
@@ -335,11 +356,9 @@ class MpIsaccoImport extends Module
         $helper->fields_value['input_json'] = number_format($size,0) . ' Kb';
         $helper->fields_value['input_json_elements'] = count($json_array) . " elements";
         if(Tools::isSubmit('submit_form')) {
-            $helper->fields_value['input_export'] = Tools::getValue('input_export',0);
-            $helper->fileds_value['input_json_string'] = $this->json_string;
+            $helper->fields_value['input_export'] = '1';
         } else {
             $helper->fields_value['input_export'] = '0';
-            $helper->fileds_value['input_json_string'] = '';
         }
         
         $this->messages[]['createForm'] = [
@@ -347,7 +366,6 @@ class MpIsaccoImport extends Module
             'call' => debug_backtrace()[1]['function'],
             'return' => count($helper->fields_value) . ' elements',
             ];
-        
         $form =  $helper->generateForm($fields_form);
         return $form;
     }
@@ -382,28 +400,19 @@ class MpIsaccoImport extends Module
     
     private function submit()
     {
-        $url = Tools::getValue('input_url');
-        $user = Tools::getValue('input_user');
-        $password = Tools::getValue('input_password');
-        $json = Tools::getValue('input_json_string','');
+        unlink($this->excel_filename);
         
-        if(Tools::getValue('input_export',0)==1) {
-            $this->messages[]['export'] = [
-                'on' => true,
-                'call' => debug_backtrace()[1]['function'],
-                'export to excel' => 'yes',
-                'json' => strlen($json) . " Kb"
-            ];
-        } else {
-            ConfigurationCore::set('MP_ISACCO_IMPORT_URL', $url);
-            ConfigurationCore::set('MP_ISACCO_IMPORT_USER', $user);
-            ConfigurationCore::set('MP_ISACCO_IMPORT_PWD', $password);
-        }
+        $url        = Tools::getValue('input_url','');
+        $user       = Tools::getValue('input_user','');
+        $password   = Tools::getValue('input_password','');
+        
+        ConfigurationCore::set('MP_ISACCO_IMPORT_URL', $url);
+        ConfigurationCore::set('MP_ISACCO_IMPORT_USER', $user);
+        ConfigurationCore::set('MP_ISACCO_IMPORT_PWD', $password);
         
         $this->url = $url;
         $this->user = $user;
         $this->password = $password;
-        $this->json_string = $json;
         
         $this->messages[]['submit'] = [
                 'on' => true,
