@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
-	<name>mpcarrierimport</name>
-	<displayName><![CDATA[MP Carrier Import]]></displayName>
-	<version><![CDATA[1.2.0]]></version>
-	<description><![CDATA[Update track order status via CSV or EXCEL and change order state.]]></description>
+	<name>mpisaccoimport</name>
+	<displayName><![CDATA[MP Isacco Import]]></displayName>
+	<version><![CDATA[1.0.0]]></version>
+	<description><![CDATA[Imports Isacco products.]]></description>
 	<author><![CDATA[mpsoft]]></author>
 	<tab><![CDATA[administration]]></tab>
 	<confirmUninstall><![CDATA[Are you sure you want to uninstall?]]></confirmUninstall>

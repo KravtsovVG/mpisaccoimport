@@ -38,6 +38,7 @@ class MpIsaccoImport extends Module
     private $url;
     private $user;
     private $password;
+    private $json_string;
     protected $_lang;
     
     public function __construct()
@@ -58,9 +59,10 @@ class MpIsaccoImport extends Module
         $this->_lang = ContextCore::getContext()->language->id;
         
         //field values
-        $this->url = $this->get('MP_ISACCO_IMPORT_URL'); 
-        $this->user = $this->get('MP_ISACCO_IMPORT_USER');
-        $this->password = $this->get('MP_ISACCO_IMPORT_PWD');
+        $this->url = '';
+        $this->user = '';
+        $this->password = '';
+        $this->json_string = '';
         $this->messages = [];
         $this->debug = true;
     }
@@ -176,14 +178,16 @@ class MpIsaccoImport extends Module
         if (Tools::isSubmit('submit_form')) {
             $this->submit();
         } else {
-            $this->url = Tools::getValue('input_url', '');
-            $this->user = Tools::getValue('input_user', '');
-            $this->password = Tools::getValue('input_password', '');
+            $this->url = ConfigurationCore::get('MP_ISACCO_IMPORT_URL');
+            $this->user = ConfigurationCore::get('MP_ISACCO_IMPORT_USER');
+            $this->password = ConfigurationCore::get('MP_ISACCO_IMPORT_PWD');
         }
         
+        $smarty = Context::getContext()->smarty;
         $form =  $this->createForm();
+        $script =  $smarty->fetch(_PS_MODULE_DIR_ . 'mpisaccoimport/views/templates/admin/mpisaccoimport_script.tpl');
         $this->debug_messages();
-        return $form . $this->messages;
+        return $form . $script . $this->messages;
     }
     
     private function createForm()
@@ -233,6 +237,27 @@ class MpIsaccoImport extends Module
                     'class' => 'input fixed-width-xxl',
                     'align' => 'right'
                 ],
+                [
+                    'type' => 'text',
+                    'label' => $this->l('Elements:'),
+                    'name' => 'input_json_elements',
+                    'id' => 'input_json_elements',
+                    'required' => false,
+                    'readonly' => true,
+                    'desc' => $this->l('Show total elements of the imported file'),
+                    'class' => 'input fixed-width-xxl',
+                    'align' => 'right'
+                ],
+                [
+                    'type' => 'hidden',
+                    'name' => 'input_export',
+                    'id'   => 'input_export',
+                ],
+                [
+                    'type' => 'hidden',
+                    'name' => 'input_json_string',
+                    'id'   => 'input_json_string',
+                ],
             ],
             'submit' => [
                 'title' => $this->l('GET'),       
@@ -246,7 +271,12 @@ class MpIsaccoImport extends Module
                         'title' => $this->l('BACK'),
                         'href' => 'javascript:void(0);',
                         'icon' => 'process-icon-back'
-                    ]
+                    ],
+                    'cancelBlock' => [
+                        'title' => $this->l('EXPORT XLS'),
+                        'href' => 'javascript:export_excel();',
+                        'icon' => 'process-icon-upload'
+                    ],
                  ],
         ];
         
@@ -256,39 +286,40 @@ class MpIsaccoImport extends Module
             $username = $this->user;
             $password = $this->password;
             $url      = $this->url;
-
-            $context = stream_context_create(
-                [
-                'http' => ['header'  => "Authorization: Basic " . base64_encode("$username:$password")]
-                ]);
-            $json_data = trim(file_get_contents($url, false, $context));
-            $pattern = '/,}$/';
-            $replacement = '}';
-            $json_purified = preg_replace($pattern, $replacement, $json_data);
-            $size = (int)(strlen($json_purified));
-            $filename = dirname(__FILE__) .'/json.txt';
-            file_put_contents($filename, $json_purified);
-            chmod($filename,0777);
+            
+            if (Tools::getValue('input_export')) {
+                $json_purified = Tools::getValue('input_json_string');
+            } else {
+                //Get file from server
+                $context = stream_context_create(
+                    [
+                    'http' => ['header'  => "Authorization: Basic " . base64_encode("$username:$password")]
+                    ]);
+                $json_data_1 = file_get_contents($url, false, $context);
+                $json_data_2 = substr($json_data_1,strpos($json_data_1,"{"));
+                $pattern = '/,}$/';
+                $replacement = '}';
+                $json_purified = preg_replace($pattern, $replacement, $json_data_2);
+                $size = (int)(strlen($json_purified));
+                $filename = dirname(__FILE__) .'/json.txt';
+                file_put_contents($filename, $json_purified);
+                chmod($filename,0777);
+                $this->json_string = $json_purified;
+            }
+            
+            //Decode string into object
             $json_array  = Tools::jsonDecode($json_purified, true);
-            /*
-            
-            $filename = dirname(__FILE__) .'/json.txt';
-            $save = file_put_contents($filename, $json_purified);
-            chmod($filename,0777);
-            
-            $obj_json = Tools::jsonDecode($json_purified, true);
-            */
-            
             
             $this->messages[]['createForm -> get json'] = [
                 'on' => true,
                 'url' => $this->url,
                 'user' => $this->user,
                 'password' => $this->password,
-                'json' => print_r($json_array, 1),
+                'json' => count($json_array) . " elements",
             ];
         } else {
-            $json_data = 0;
+            $json_array = [];
+            $size = 0;
         }
         
         $helper = new HelperFormCore();
@@ -302,6 +333,14 @@ class MpIsaccoImport extends Module
         $helper->fields_value['input_user'] = $this->user;
         $helper->fields_value['input_password'] = $this->password;
         $helper->fields_value['input_json'] = number_format($size,0) . ' Kb';
+        $helper->fields_value['input_json_elements'] = count($json_array) . " elements";
+        if(Tools::isSubmit('submit_form')) {
+            $helper->fields_value['input_export'] = Tools::getValue('input_export',0);
+            $helper->fileds_value['input_json_string'] = $this->json_string;
+        } else {
+            $helper->fields_value['input_export'] = '0';
+            $helper->fileds_value['input_json_string'] = '';
+        }
         
         $this->messages[]['createForm'] = [
             'on' => true,
@@ -346,14 +385,25 @@ class MpIsaccoImport extends Module
         $url = Tools::getValue('input_url');
         $user = Tools::getValue('input_user');
         $password = Tools::getValue('input_password');
+        $json = Tools::getValue('input_json_string','');
         
-        ConfigurationCore::set('MP_ISACCO_IMPORT_URL', $url);
-        ConfigurationCore::set('MP_ISACCO_IMPORT_USER', $user);
-        ConfigurationCore::set('MP_ISACCO_IMPORT_PWD', $password);
+        if(Tools::getValue('input_export',0)==1) {
+            $this->messages[]['export'] = [
+                'on' => true,
+                'call' => debug_backtrace()[1]['function'],
+                'export to excel' => 'yes',
+                'json' => strlen($json) . " Kb"
+            ];
+        } else {
+            ConfigurationCore::set('MP_ISACCO_IMPORT_URL', $url);
+            ConfigurationCore::set('MP_ISACCO_IMPORT_USER', $user);
+            ConfigurationCore::set('MP_ISACCO_IMPORT_PWD', $password);
+        }
         
         $this->url = $url;
         $this->user = $user;
         $this->password = $password;
+        $this->json_string = $json;
         
         $this->messages[]['submit'] = [
                 'on' => true,
