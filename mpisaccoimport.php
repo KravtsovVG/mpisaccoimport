@@ -27,8 +27,15 @@
 if (!defined('_PS_VERSION_')) {
     exit;
 }
-if (!defined('_CLASSES_')) {
-    define('_CLASSES_', dirname(__FILE__) . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR);
+
+if (!defined('MP_ISACCOIMPORT_CLASSES_')) {
+    define('MP_ISACCOIMPORT_CLASSES_', _PS_MODULE_DIR_ 
+            . DIRECTORY_SEPARATOR . 'mpisaccoimport'
+            . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR);
+}
+
+if(!class_exists('DebugMessage')) {
+    require_once MP_ISACCOIMPORT_CLASSES_ . "DebugMessage.php";
 }
 
 class MpIsaccoImport extends Module
@@ -65,7 +72,7 @@ class MpIsaccoImport extends Module
         $this->user = '';
         $this->password = '';
         $this->json_string = '';
-        $this->messages = [];
+        $this->messages = new DebugMessageList();
         $this->debug = true;
         $this->filename = dirname(__FILE__) . DIRECTORY_SEPARATOR .'json.txt';
         $this->excel_filename = dirname(__FILE__) . DIRECTORY_SEPARATOR .'export.xls';
@@ -78,28 +85,11 @@ class MpIsaccoImport extends Module
         }
 
         if (!parent::install() ||
-            !$this->installTab() ||
-            !$this->extractClass()) {
+            !$this->installTab()) {
             return false;
         }
             return true;
       }
-    
-    public function extractClass()
-    {
-        $zip = new ZipArchive();
-        if ($zip->open(dirname(__FILE__) . DIRECTORY_SEPARATOR . 'PHPExcel-1.8.zip') === TRUE) {
-            if ($zip->extractTo(_PS_CLASS_DIR_)) {
-                $zip->close();
-                return true;
-            } else {
-                $zip->close();
-                return false;
-            }
-        } else {
-            return false;
-        }
-    }
       
     public function uninstall()
     {
@@ -152,9 +142,8 @@ class MpIsaccoImport extends Module
         $smarty = Context::getContext()->smarty;
         $form =  $this->createForm();
         $script =  $smarty->fetch(_PS_MODULE_DIR_ . 'mpisaccoimport/views/templates/admin/mpisaccoimport_script.tpl');
-        $this->debug_messages();
         
-        return $form . $script . $this->messages;
+        return $form . $script . $this->messages->displayMessages();
     }
     
     private function createForm()
@@ -252,12 +241,16 @@ class MpIsaccoImport extends Module
             if (Tools::getValue('input_export',0)==1) {
                 //Get file from input field
                 $json_purified = file_get_contents($this->filename); 
-                $this->messages[]['export'] = [
-                    'on' => true,
-                    'call' => debug_backtrace()[1]['function'],
-                    'export to excel' => 'yes',
-                    'json' => strlen($this->json_string) . " Kb"
-                ];
+                
+                //Debug Message
+                $msg = new DebugMessage();
+                $msg->setStatus(true);
+                $msg->setName(__FUNCTION__);
+                $msg->setCall(debug_backtrace()[1]['function']);
+                $msg->add(DebugMessageType::MessageTypeNotes, 'export to Excel', true);
+                $msg->add(DebugMessageType::MessageTypeNotes, 'json->elements', strlen($this->json_string) . " Kb");
+                
+                $this->messages->add($msg);
             } else {
                 //Get file from server
                 $context = stream_context_create(
@@ -283,7 +276,7 @@ class MpIsaccoImport extends Module
              **********************/
             if (Tools::getValue('input_export',0)==1) {
                 $excel = new PHPExcel();
-                $sheet = &$excel->getSheet();
+                $sheet = $excel->getSheet();
                 $i_row = 1;
                 foreach ($json_array as $row) {
                     if ($i_row==1) {
@@ -305,39 +298,49 @@ class MpIsaccoImport extends Module
                     }
                     $i_row++;
                 }
-                //$excel->removeSheetByIndex();
-                //$excel->addSheet($sheet);
+                $excel->removeSheetByIndex();
+                $excel->addSheet($sheet);
  
                 $objWriter = new PHPExcel_Writer_Excel5($excel);
                 try {
                     $objWriter->save($this->excel_filename); 
                     chmod($this->excel_filename, 0775);
                     Context::getContext()->smarty->assign('download_xls','../modules/mpisaccoimport/download.php?file=export.xls');
-                    $this->messages[]['Excel Writer'] = [
-                        'on' => true,
-                        'call' => debug_backtrace()[1]['function'],
-                        'create' => 'success',
-                        'filename' => $this->excel_filename
-                    ];
+                    
+                    //Debug Message
+                    $msg = new DebugMessage();
+                    $msg->setStatus(true);
+                    $msg->setName(__FUNCTION__);
+                    $msg->setCall(debug_backtrace()[1]['function']);
+                    $msg->add(DebugMessageType::MessageTypeOutput, 'filename', $this->excel_filename);
+                    $msg->add(DebugMessageType::MessageTypeNotes, 'procedure', 'writeExcelFile');
+                    $this->messages->add($msg);
                 } catch (Exception $exc) {
                     Context::getContext()->smarty->assign('download_xls','');
-                    $this->messages[]['Excel Writer'] = [
-                        'on' => true,
-                        'call' => debug_backtrace()[1]['function'],
-                        'error' => $exc->getMessage(),
-                        'filename' => $this->excel_filename
-                    ];
+                    
+                    //Debug Message
+                    $msg = new DebugMessage();
+                    $msg->setStatus(true);
+                    $msg->setName(__FUNCTION__);
+                    $msg->setCall(debug_backtrace()[1]['function']);
+                    $msg->add(DebugMessageType::MessageTypeOutput, 'filename', $this->excel_filename);
+                    $msg->add(DebugMessageType::MessageTypeNotes, 'error', $exc->getMessage());
+                    $this->messages->add($msg);
                 }
             }
             
-            $this->messages[]['createForm -> get json'] = [
-                'on' => true,
-                'call' => debug_backtrace()[1]['function'],
-                'url' => $this->url,
-                'user' => $this->user,
-                'password' => $this->password,
-                'json' => count($json_array) . " elements",
-            ];
+            //Debug Message
+            $msg = new DebugMessage();
+            $msg->setStatus(true);
+            $msg->setName(__FUNCTION__);
+            $msg->setCall(debug_backtrace()[1]['function']);
+            $msg->add(DebugMessageType::MessageTypeOutput, 'filename', $this->excel_filename);
+            $msg->add(DebugMessageType::MessageTypeNotes, 'get json->url', $this->url);
+            $msg->add(DebugMessageType::MessageTypeNotes, 'get json->user', $this->user);
+            $msg->add(DebugMessageType::MessageTypeNotes, 'get json->pass', $this->password);
+            $msg->add(DebugMessageType::MessageTypeNotes, 'get json->elements', count($json_array));
+            $this->messages->add($msg);
+            
         } else {
             $json_array = [];
             $size = 0;
@@ -361,46 +364,23 @@ class MpIsaccoImport extends Module
             $helper->fields_value['input_export'] = '0';
         }
         
-        $this->messages[]['createForm'] = [
-            'on' => true,
-            'call' => debug_backtrace()[1]['function'],
-            'return' => count($helper->fields_value) . ' elements',
-            ];
+        //Debug Message
+        $msg = new DebugMessage();
+        $msg->setStatus(true);
+        $msg->setName(__FUNCTION__);
+        $msg->setCall(debug_backtrace()[1]['function']);
+        $msg->add(DebugMessageType::MessageTypeOutput, 'return', count($helper->fields_value) . ' elements');
+        $this->messages->add($msg);
+        
         $form =  $helper->generateForm($fields_form);
         return $form;
     }
     
-    private function debug_messages()
-    {
-        if ($this->debug) {
-            $msg_display = '';
-            foreach ($this->messages as $message) {
-                foreach ($message as $key=>$msg)
-                {
-                    if ($msg['on']) {
-                        unset($msg['on']);
-                        $msg_display .= 'FUNCTION: ' 
-                                .$key 
-                                .PHP_EOL 
-                                .print_r($msg, 1)
-                                .PHP_EOL
-                                .'===================================================================================='
-                                .PHP_EOL
-                                .'===================================================================================='
-                                .PHP_EOL
-                                .PHP_EOL;
-                    }
-                }
-            }
-            $this->messages = $this->displayConfirmation("<pre>" . $msg_display . "</pre>");
-        } else {
-            $this->messages = '';
-        }
-    }
-    
     private function submit()
     {
-        unlink($this->excel_filename);
+        if (file_exists($this->excel_filename)) {
+            unlink($this->excel_filename);
+        }
         
         $url        = Tools::getValue('input_url','');
         $user       = Tools::getValue('input_user','');
@@ -414,18 +394,27 @@ class MpIsaccoImport extends Module
         $this->user = $user;
         $this->password = $password;
         
-        $this->messages[]['submit'] = [
-                'on' => true,
-                'call' => debug_backtrace()[1]['function'],
-                'url' => $this->url,
-                'user' => $this->user,
-                'password' => $this->password,
-            ];
+        //Debug Message
+        $msg = new DebugMessage();
+        $msg->setStatus(true);
+        $msg->setName(__FUNCTION__);
+        $msg->setCall(debug_backtrace()[1]['function']);
+        $msg->add(DebugMessageType::MessageTypeOutput, 'submit', true);
+        $msg->add(DebugMessageType::MessageTypeNotes, 'get json->url', $this->url);
+        $msg->add(DebugMessageType::MessageTypeNotes, 'get json->user', $this->user);
+        $msg->add(DebugMessageType::MessageTypeNotes, 'get json->pass', $this->password);
+        $this->messages->add($msg);
     }
     
     private function get($key,$default = '')
     {
         $value = ConfigurationCore::get($key);
+        
+        //Debug Message
+        $msg = new DebugMessage();
+        $msg->setStatus(true);
+        $msg->setName(__FUNCTION__);
+        $msg->setCall(debug_backtrace()[1]['function']);
         
         $this->messages[]['get'] = [
             'on' => true,
@@ -436,8 +425,12 @@ class MpIsaccoImport extends Module
         ];
         
         if (empty($value)) { 
+            $msg->add(DebugMessageType::MessageTypeOutput, 'return', $default);
+            $this->messages->add($msg);
             return $default;
         } else {
+            $msg->add(DebugMessageType::MessageTypeOutput, 'return', $value);
+            $this->messages->add($msg);
             return $value;
         }
     }

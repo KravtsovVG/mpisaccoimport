@@ -24,6 +24,16 @@
  *  International Registered Trademark & Property of mpSOFT
  */
 
+if (!defined('MP_ISACCOIMPORT_CLASSES_')) {
+    define('MP_ISACCOIMPORT_CLASSES_', _PS_MODULE_DIR_ 
+            . DIRECTORY_SEPARATOR . 'mpisaccoimport'
+            . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR);
+}
+
+if(!class_exists('DebugMessage')) {
+    require_once MP_ISACCOIMPORT_CLASSES_ . "DebugMessage.php";
+}
+
 class AdminMpIsaccoImportController extends ModuleAdminControllerCore {
     private $_lang;
     private $tablename;
