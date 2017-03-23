@@ -106,29 +106,40 @@ class DebugMessage {
         return "<pre>" .
                     "Function: <b>" . $this->name . '</b>' . PHP_EOL .
                     "  Call    : " . $this->call . PHP_EOL . 
-                    "  Input   : " . PHP_EOL . $this->explode($this->input) .
-                    "  Output  : " . PHP_EOL . $this->explode($this->output) . 
-                    "  Notes   : " . PHP_EOL . $this->explode($this->notes) .
+                    "  Input   : " . $this->explode($this->input) .
+                    "  Output  : " . $this->explode($this->output) . 
+                    "  Notes   : " . $this->explode($this->notes) .
                 "</pre>";
                 
     }
     
     private function explode($array)
     {
-        $output = "";
-        if(!empty($array)) {
-            if (is_array($array)) {
-                foreach($array as $item) {
-                    $output .= "            " . $item['param'] . " = " . $item['value'] . PHP_EOL;
-                }
-                    
-            } else {
-                $output = "            " . "*** EMPTY ***" . PHP_EOL;
-            }
+        $output = $this->explodeArray($array);
+        if (empty($output)) {
+            return str_repeat(" ", 16) . "*** EMPTY ***" . PHP_EOL;
         } else {
-            $output = "            " . "*** EMPTY ***" . PHP_EOL;
+            return str_repeat(" ", 16) . $output . PHP_EOL;
         }
-        return $output;
+    }
+    
+    private function explodeArray($array, $tab = 0)
+    {
+        if (empty($array)) {
+            return "";
+        }
+                
+        $tab++;
+        $output = [];
+        foreach($array as $key=>$value)
+        {
+            if (is_array($value)) {
+                $output[] = str_repeat(" ", $tab*4) . '[' . $key . "]: " . PHP_EOL .  $this->explodeArray($value, $tab);
+            } else {
+                $output[] = str_repeat(" ", $tab*4) . '[' . $key . "]: " . $value;
+            }
+        }
+        return implode(PHP_EOL, $output);
     }
 }
 
